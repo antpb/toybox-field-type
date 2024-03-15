@@ -101,48 +101,52 @@ const questions = [
  * @param {object} replacements Replace keys with their values.
  */
 const renameFiles = (replacements = {}) => {
-  const dir = path.resolve(__dirname);
+	const originalDir = path.resolve(__dirname, "acf-FIELD-NAME");
+	const newDirName = "acf-" + replacements["FIELD-NAME"];
+	const newDir = path.resolve(__dirname, newDirName);
 
-  /**
-   * Rename acf-FIELD-NAME directory first. Prevents write failure during file
-   * renames due to parent directory being renamed by the first find-replace.
-   */
-  fs.renameSync(
-    path.resolve(__dirname, "acf-FIELD-NAME"),
-    path.resolve(
-      __dirname,
-      "acf-FIELD-NAME".replace(/FIELD-NAME/g, replacements["FIELD-NAME"])
-    )
-  );
+	// Create a new directory with the renamed files and directories
+	fs.mkdirSync(newDir, { recursive: true });
 
-  const files = walkSync(dir);
+	const files = walkSync(originalDir);
 
-  files.forEach((file) => {
-    let newPath = Object.keys(replacements).reduce(
-      (acc, key) => acc.replace(new RegExp(key, "g"), replacements[key]),
-      file
-    );
+	files.forEach((file) => {
+		let newPath = Object.keys(replacements).reduce(
+			(acc, key) => acc.replace(new RegExp(key, "g"), replacements[key]),
+			file
+		);
 
-    fs.renameSync(file, newPath);
-  });
+		const newFilePath = path.join(newDir, path.relative(originalDir, newPath));
+		const dirPath = path.dirname(newFilePath);
+
+		// Create the directory structure for the new file
+		if (!fs.existsSync(dirPath)) {
+			fs.mkdirSync(dirPath, { recursive: true });
+		}
+
+		fs.copyFileSync(file, newFilePath);
+	});
+
+	fs.renameSync(
+		path.join(newDir, `class-${replacements["PREFIX"]}-acf-field-${replacements["FIELD-NAME"]}.php`),
+		{ recursive: false, force: true }
+	);
 };
 
 const replaceStrings = (replacements = {}) => {
-  const dir = path.resolve(__dirname);
-  const files = walkSync(dir);
+	const files = walkSync(("acf-" + replacements["FIELD-NAME"]));
 
-  files.forEach((file) => {
-    const oldContent = fs.readFileSync(file, "utf8");
+	files.forEach((file) => {
+	  const oldContent = fs.readFileSync(file, "utf8");
 
-    let newFileContent = Object.keys(replacements).reduce(
-      (acc, key) => acc.replace(new RegExp(key, "g"), replacements[key]),
-      oldContent
-    );
+	  let newFileContent = Object.keys(replacements).reduce(
+		(acc, key) => acc.replace(new RegExp(key, "g"), replacements[key]),
+		oldContent
+	  );
 
-    fs.writeFileSync(file, newFileContent, "utf8");
-  });
+	  fs.writeFileSync(file, newFileContent, "utf8");
+	});
 };
-
 /**
  * Gets all files in `dir` excluding repo paths such as node_modules.
  *
